@@ -1,5 +1,4 @@
-README for LuaJIT 2.1.0-beta3
------------------------------
+## README for LuaJIT 2.1.0-beta3
 
 LuaJIT is a Just-In-Time (JIT) compiler for the Lua programming language.
 
@@ -14,3 +13,14 @@ Please point your favorite browser to:
 
  doc/luajit.html
 
+## Visual Studio 2022调试环境搭建
+
+1. 修改源代码src目录下的 `msvcbuild.bat` 文件，修改部分在 第107行-110行
+2. 打开 x64 Native Tools Command Prompt for VS 2022
+   - 可以在 开始 菜单找到 Visual Studio 2022，然后在下级目录就可以找到
+3. 在命令行进入源代码的src目录下，执行 `msvcbuild x64` 
+   - 运行 `dumpbin /headers lj_vm.obj | find "machine"` 确保是 `x64` 结构
+4. 所有工程的输出目录指定为 `$(SolutionDir)\bin\Debug\` 
+5. 把 src 目录下的 lj_vm.obj 放到 `$(SolutionDir)\bin\Debug\` 下
+6. LuaJITExe 工程的 连接器->输入 里面需要添加 `lj_vm.obj` 
+7. 根目录增加 `.gitignore` 

@@ -1,0 +1,29 @@
+LuaJITSolution/.vs/
+
+**/*.obj
+!LuaJITSolution/
+!LuaJITSolution/bin/
+!LuaJITSolution/bin/Debug/
+!LuaJITSolution/bin/Debug/lj_vm.obj
+**/*.pdb
+**/*.suo
+**/*.user
+**/*.pch
+
+**/*.txt
+**/*.log
+**/*.tlog
+**/*.ilk
+**/*.idb
+**/*.exp
+**/*.recipe
+**/*.exe
+**/*.dll
+**/*.lib
+
+# Ignore build directories
+LuaJITSolution/**/obj/
+# Ignore Visual Studio specific files
+LuaJITSolution/**/ipch/
+
+

@@ -23,4 +23,6 @@ Please point your favorite browser to:
 4. 所有工程的输出目录指定为 `$(SolutionDir)\bin\Debug\` 
 5. 把 src 目录下的 lj_vm.obj 放到 `$(SolutionDir)\bin\Debug\` 下
 6. LuaJITExe 工程的 连接器->输入 里面需要添加 `lj_vm.obj` 
-7. 根目录增加 `.gitignore` 
+7. 修改 src 目录下的 `.gitignore` 
+8. `lj_bcdef.h,lj_ffdef.h,lj_libdef.h,lj_recdef.h,lj_folddef.h` 五个文件提交到git
+9. 根目录增加 `.gitignore` 

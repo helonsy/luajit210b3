@@ -513,11 +513,22 @@ static int pmain(lua_State *L)
   char **argv = s->argv;
   int argn;
   int flags = 0;
-  globalL = L;
-  if (argv[0] && argv[0][0]) progname = argv[0];
+  globalL = L; // globalL 用于在其他函数中访问 Lua 状态
+  if (argv[0] && argv[0][0]) progname = argv[0]; // 设置程序名
 
   LUAJIT_VERSION_SYM();  /* Linker-enforced version check. */
 
+  // luajit -v -i script.lua a b
+  // argv: [0]=luajit [1]=-v [2]=-i [3]=script.lua [4]=a [5]=b
+  // collectargs 返回 3，于是 argn==3，表示从 argv[3] 开始都是脚本名及其参数。
+  // ---------------------------------------------------------------------------------------
+  // 在扫描过程中，它把遇到的开关用一个无符号整数的不同比特位记录下来，形成一个“标志位图” flags：
+  // FLAGS_INTERACTIVE 0x01 (-i)
+  // FLAGS_VERSION 0x02 (-v)
+  // FLAGS_EXEC 0x04 (-e 或 -b)
+  // FLAGS_OPTION 0x08 (-e/-l/-j/-O 有跟随参数的普通选项)
+  // FLAGS_NOENV 0x10 (-E)
+  // 这样 pmain 之后只需要检查这个位图就能立即知道用户有没有要求交互、打印版本、忽略环境变量等，而不用再遍历一次 argv。
   argn = collectargs(argv, &flags);
   if (argn < 0) {  /* Invalid args? */
     print_usage();
@@ -525,12 +536,14 @@ static int pmain(lua_State *L)
     return 0;
   }
 
+  // 若设了 -E ，把 LUA_NOENV 写入注册表，后续库会据此跳过 getenv
   if ((flags & FLAGS_NOENV)) {
     lua_pushboolean(L, 1);
     lua_setfield(L, LUA_REGISTRYINDEX, "LUA_NOENV");
   }
 
   /* Stop collector during library initialization. */
+  // 停止 GC → luaL_openlibs → 恢复 GC。
   lua_gc(L, LUA_GCSTOP, 0);
   luaL_openlibs(L);
   lua_gc(L, LUA_GCRESTART, -1);
@@ -570,15 +583,15 @@ static int pmain(lua_State *L)
 int main(int argc, char **argv)
 {
   int status;
-  lua_State *L = lua_open();
+  lua_State *L = lua_open(); // 创建Lua状态
   if (L == NULL) {
     l_message(argv[0], "cannot create state: not enough memory");
     return EXIT_FAILURE;
   }
-  smain.argc = argc;
+  smain.argc = argc; // smain 全局变量，在 pmain 中使用
   smain.argv = argv;
-  status = lua_cpcall(L, pmain, NULL);
-  report(L, status);
+  status = lua_cpcall(L, pmain, NULL); // 安全调用主逻辑函数 pmain
+  report(L, status); // 把 lua_cpcall 返回的状态码和栈顶的错误对象化为可读的错误信息并输出
   lua_close(L);
   return (status || smain.status > 0) ? EXIT_FAILURE : EXIT_SUCCESS;
 }

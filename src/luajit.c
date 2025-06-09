@@ -553,16 +553,35 @@ static int pmain(lua_State *L)
   createargtable(L, argv, s->argc, argn); // argn: 表示脚本名及其后续参数的起始索引
 
   if (!(flags & FLAGS_NOENV)) {
+    // handle_luainit 的作用是处理环境变量 LUA_INIT，并根据其值执行初始化逻辑。
+    // luajit script.lua
+    //   如果没有设置-E，程序会检查环境变量 LUA_INIT。
+    //   如果 LUA_INIT 的值是 @init.lua，那么会执行 init.lua 脚本。
     s->status = handle_luainit(L);
     if (s->status != LUA_OK) return 0;
   }
 
   if ((flags & FLAGS_VERSION)) print_version();
 
+  // argn: 表示脚本名及其后续参数的起始索引
+  // 遍历命令行参数，识别以 - 开头的选项
+  // -e: 执行 Lua 代码片段。
+  // -l: 加载 Lua 库。
+  // -j: 执行 LuaJIT 的 JIT 命令。
+  // - O: 设置 LuaJIT 的优化选项。
+  // - b: 保存或列出 Lua 字节码。
+  // luajit -e "print('Hello, Lua!')" -l math -j status
+  //   1.	执行 print('Hello, Lua!')。
+  //   2.	加载 math 库。
+  //   3.	执行 JIT 命令 status。
   s->status = runargs(L, argv, argn);
   if (s->status != LUA_OK) return 0;
 
   if (s->argc > argn) {
+    // luajit script.lua param1 param2
+    //   1.	handle_script 加载 script.lua。
+    //   2.	从 arg 表中获取参数 param1 和 param2。
+    //   3.	执行 script.lua，并将参数传递给脚本。
     s->status = handle_script(L, argv + argn);
     if (s->status != LUA_OK) return 0;
   }

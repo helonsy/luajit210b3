@@ -546,9 +546,11 @@ static int pmain(lua_State *L)
   // 停止 GC → luaL_openlibs → 恢复 GC。
   lua_gc(L, LUA_GCSTOP, 0);
   luaL_openlibs(L);
-  lua_gc(L, LUA_GCRESTART, -1);
+  lua_gc(L, LUA_GCRESTART, -1); // 第三个参数在这种情况下无意义，通常设置为 -1 或其他值以满足函数签名
 
-  createargtable(L, argv, s->argc, argn);
+  // 在 Lua 中，arg 表包含以下内容：1.arg[0]: 程序名   2.arg[1] 到 arg[n]: 脚本名及其后续参数
+  // s->argc 在 main函数中 通过 smain.argc = argc; 赋值
+  createargtable(L, argv, s->argc, argn); // argn: 表示脚本名及其后续参数的起始索引
 
   if (!(flags & FLAGS_NOENV)) {
     s->status = handle_luainit(L);

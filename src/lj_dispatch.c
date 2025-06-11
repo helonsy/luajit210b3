@@ -57,6 +57,12 @@ static const ASMFunction dispatch_got[] = {
 #endif
 
 /* Initialize instruction dispatch table and hot counters. */
+// 了解调度表是如何构建的
+// 了解每个指令如何映射到具体的实现函数
+// 调度表：存储字节码操作对应的处理函数指针
+// 调度模式：不同的执行模式（解释执行，JIT，记录等）
+// 热计数：用于识别热点代码的计数机制，触发JIT编译
+// 钩子系统：允许在特定事件（调用，返回，每行等）时执行自定义代码
 void lj_dispatch_init(GG_State *GG)
 {
   uint32_t i;
@@ -101,6 +107,7 @@ void lj_dispatch_init_hotcount(global_State *g)
 #define DISPMODE_PROF	0x40	/* Profiling active. */
 
 /* Update dispatch table depending on various flags. */
+// 说明了不同模式下调度逻辑的切换逻辑
 void lj_dispatch_update(global_State *g)
 {
   uint8_t oldmode = g->dispatchmode;
@@ -356,6 +363,7 @@ LUA_API int lua_gethookcount(lua_State *L)
 }
 
 /* Call a hook. */
+// 实现调试功能
 static void callhook(lua_State *L, int event, BCLine line)
 {
   global_State *g = G(L);
@@ -401,6 +409,7 @@ static BCReg cur_topslot(GCproto *pt, const BCIns *pc, uint32_t nres)
 }
 
 /* Instruction dispatch. Used by instr/line/return hooks or when recording. */
+// 主要的函数 处理指令执行、调用和返回
 void LJ_FASTCALL lj_dispatch_ins(lua_State *L, const BCIns *pc)
 {
   ERRNO_SAVE
@@ -464,6 +473,7 @@ static int call_init(lua_State *L, GCfunc *fn)
 }
 
 /* Call dispatch. Used by call hooks, hot calls or when recording. */
+// 主要函数：处理指令执行、调用和返回
 ASMFunction LJ_FASTCALL lj_dispatch_call(lua_State *L, const BCIns *pc)
 {
   ERRNO_SAVE

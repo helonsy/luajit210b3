@@ -57,29 +57,45 @@ static const ASMFunction dispatch_got[] = {
 #endif
 
 /* Initialize instruction dispatch table and hot counters. */
-// ÁË½âµ÷¶È±íÊÇÈçºÎ¹¹½¨µÄ
-// ÁË½âÃ¿¸öÖ¸ÁîÈçºÎÓ³Éäµ½¾ßÌåµÄÊµÏÖº¯Êı
-// µ÷¶È±í£º´æ´¢×Ö½ÚÂë²Ù×÷¶ÔÓ¦µÄ´¦Àíº¯ÊıÖ¸Õë
-// µ÷¶ÈÄ£Ê½£º²»Í¬µÄÖ´ĞĞÄ£Ê½£¨½âÊÍÖ´ĞĞ£¬JIT£¬¼ÇÂ¼µÈ£©
-// ÈÈ¼ÆÊı£ºÓÃÓÚÊ¶±ğÈÈµã´úÂëµÄ¼ÆÊı»úÖÆ£¬´¥·¢JIT±àÒë
-// ¹³×ÓÏµÍ³£ºÔÊĞíÔÚÌØ¶¨ÊÂ¼ş£¨µ÷ÓÃ£¬·µ»Ø£¬Ã¿ĞĞµÈ£©Ê±Ö´ĞĞ×Ô¶¨Òå´úÂë
+// äº†è§£è°ƒåº¦è¡¨æ˜¯å¦‚ä½•æ„å»ºçš„
+// äº†è§£æ¯ä¸ªæŒ‡ä»¤å¦‚ä½•æ˜ å°„åˆ°å…·ä½“çš„å®ç°å‡½æ•°
+// è°ƒåº¦è¡¨ï¼šå­˜å‚¨å­—èŠ‚ç æ“ä½œå¯¹åº”çš„å¤„ç†å‡½æ•°æŒ‡é’ˆ
+// è°ƒåº¦æ¨¡å¼ï¼šä¸åŒçš„æ‰§è¡Œæ¨¡å¼ï¼ˆè§£é‡Šæ‰§è¡Œï¼ŒJITï¼Œè®°å½•ç­‰ï¼‰
+// çƒ­è®¡æ•°ï¼šç”¨äºè¯†åˆ«çƒ­ç‚¹ä»£ç çš„è®¡æ•°æœºåˆ¶ï¼Œè§¦å‘JITç¼–è¯‘
+// é’©å­ç³»ç»Ÿï¼šå…è®¸åœ¨ç‰¹å®šäº‹ä»¶ï¼ˆè°ƒç”¨ï¼Œè¿”å›ï¼Œæ¯è¡Œç­‰ï¼‰æ—¶æ‰§è¡Œè‡ªå®šä¹‰ä»£ç 
 void lj_dispatch_init(GG_State *GG)
 {
   uint32_t i;
   ASMFunction *disp = GG->dispatch;
+
+
+
+  // ä¸‹é¢ä¼šåˆ›å»ºå­—èŠ‚ç åˆ°æ±‡ç¼–å‡½æ•°çš„æ˜ å°„è¡¨ï¼Œè¿™æ˜¯è™šæ‹Ÿæœºèƒ½å¤Ÿæ‰§è¡ŒLuaå­—èŠ‚ç çš„åŸºç¡€ï¼Œåç»­å¯ä»¥é€šè¿‡lj_dispatch_updateå‡½æ•°
+  // æ ¹æ®ä¸åŒçš„æ‰§è¡Œæ¨¡å¼ï¼ˆJITå¼€å¯ï¼Œå½•åˆ¶ï¼Œè°ƒè¯•ç­‰ï¼‰åŠ¨æ€æ›´æ–°è°ƒåº¦è¡¨
+  // åŠ¨æ€è°ƒåº¦æ‰ï¼Œç”¨äºå®é™…æ‰§è¡Œæ—¶çš„æŒ‡ä»¤åˆ†æ´¾
   for (i = 0; i < GG_LEN_SDISP; i++)
+    // makeasmfunc å°†å­—èŠ‚ç åç§»é‡è½¬æ¢ä¸ºå®é™…çš„æ±‡ç¼–å‡½æ•°æŒ‡é’ˆ
     disp[GG_LEN_DDISP+i] = disp[i] = makeasmfunc(lj_bc_ofs[i]);
+  // é™æ€è°ƒåº¦è¡¨ï¼Œå­˜å‚¨åŸå§‹çš„æŒ‡ä»¤å¤„ç†å‡½æ•°ï¼Œä½œä¸ºå¤‡ä»½
   for (i = GG_LEN_SDISP; i < GG_LEN_DDISP; i++)
     disp[i] = makeasmfunc(lj_bc_ofs[i]);
+
+  // é»˜è®¤ä½¿ç”¨è§£é‡Šå™¨æ¨¡å¼ï¼ˆJITå…³é—­ï¼‰
   /* The JIT engine is off by default. luaopen_jit() turns it on. */
+  // å°†çƒ­ç‚¹è®¡æ•°ç›¸å…³çš„æŒ‡ä»¤ï¼ˆå¸¦æœ‰çƒ­ç‚¹æ£€æµ‹çš„ç‰ˆæœ¬ï¼‰æ›¿æ¢ä¸ºéè®¡æ•°ç‰ˆæœ¬ï¼ˆä»¥'|'å¼€å¤´çš„ç‰ˆæœ¬ï¼‰
   disp[BC_FORL] = disp[BC_IFORL];
   disp[BC_ITERL] = disp[BC_IITERL];
   disp[BC_LOOP] = disp[BC_ILOOP];
   disp[BC_FUNCF] = disp[BC_IFUNCF];
   disp[BC_FUNCV] = disp[BC_IFUNCV];
+  // è®¾ç½® C å‡½æ•°è°ƒç”¨çš„å­—èŠ‚ç æŒ‡ä»¤æ ¼å¼
   GG->g.bc_cfunc_ext = GG->g.bc_cfunc_int = BCINS_AD(BC_FUNCC, LUA_MINSTACK, 0);
+  // ä¸ºå†…ç½®çš„å¿«é€Ÿå‡½æ•°ï¼ˆå¦‚æ•°å­¦å‡½æ•°ç­‰ï¼‰åˆ›å»ºå¯¹åº”çš„å­—èŠ‚ç æŒ‡ä»¤
   for (i = 0; i < GG_NUM_ASMFF; i++)
     GG->bcff[i] = BCINS_AD(BC__MAX+i, 0, 0);
+
+
+
 #if LJ_TARGET_MIPS
   memcpy(GG->got, dispatch_got, LJ_GOT__MAX*sizeof(ASMFunction *));
 #endif
@@ -107,7 +123,6 @@ void lj_dispatch_init_hotcount(global_State *g)
 #define DISPMODE_PROF	0x40	/* Profiling active. */
 
 /* Update dispatch table depending on various flags. */
-// ËµÃ÷ÁË²»Í¬Ä£Ê½ÏÂµ÷¶ÈÂß¼­µÄÇĞ»»Âß¼­
 void lj_dispatch_update(global_State *g)
 {
   uint8_t oldmode = g->dispatchmode;
@@ -363,7 +378,7 @@ LUA_API int lua_gethookcount(lua_State *L)
 }
 
 /* Call a hook. */
-// ÊµÏÖµ÷ÊÔ¹¦ÄÜ
+// Êµï¿½Öµï¿½ï¿½Ô¹ï¿½ï¿½ï¿½
 static void callhook(lua_State *L, int event, BCLine line)
 {
   global_State *g = G(L);
@@ -409,7 +424,7 @@ static BCReg cur_topslot(GCproto *pt, const BCIns *pc, uint32_t nres)
 }
 
 /* Instruction dispatch. Used by instr/line/return hooks or when recording. */
-// Ö÷ÒªµÄº¯Êı ´¦ÀíÖ¸ÁîÖ´ĞĞ¡¢µ÷ÓÃºÍ·µ»Ø
+// ï¿½ï¿½Òªï¿½Äºï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½Ö´ï¿½Ğ¡ï¿½ï¿½ï¿½ï¿½ÃºÍ·ï¿½ï¿½ï¿½
 void LJ_FASTCALL lj_dispatch_ins(lua_State *L, const BCIns *pc)
 {
   ERRNO_SAVE
@@ -473,7 +488,7 @@ static int call_init(lua_State *L, GCfunc *fn)
 }
 
 /* Call dispatch. Used by call hooks, hot calls or when recording. */
-// Ö÷Òªº¯Êı£º´¦ÀíÖ¸ÁîÖ´ĞĞ¡¢µ÷ÓÃºÍ·µ»Ø
+// ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½Ö´ï¿½Ğ¡ï¿½ï¿½ï¿½ï¿½ÃºÍ·ï¿½ï¿½ï¿½
 ASMFunction LJ_FASTCALL lj_dispatch_call(lua_State *L, const BCIns *pc)
 {
   ERRNO_SAVE

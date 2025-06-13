@@ -14,10 +14,13 @@
 ** +----+----+----+----+
 ** | B  | C  | A  | OP | Format ABC
 ** +----+----+----+----+
-** |    D    | A  | OP | Format AD
+** |    D    | A  | OP | Format AD，OP放到最后面，这样可以快速提取操作码
 ** +--------------------
-** MSB               LSB
+** MSB               LSB // MSB和LSB是字节序相关表的术语：Most Significant Byte (MSB) 最高有效字节
+**                       // 和 Least Significant Byte (LSB) 最低有效字节
 **
+** 在小端机器上（如x86）：OP 在最低地址
+** 在大端机器上（如PowerPC）：OP 在最高地址
 ** In-memory instructions are always stored in host byte order.
 */
 
@@ -70,6 +73,7 @@
 */
 #define BCDEF(_) \
   /* Comparison ops. ORDER OPR. */ \
+  /* ISLT 是 是否小于 的意思 */ \
   _(ISLT,	var,	___,	var,	lt) \
   _(ISGE,	var,	___,	var,	lt) \
   _(ISLE,	var,	___,	var,	le) \
@@ -197,9 +201,22 @@
   _(FUNCCW,	rbase,	___,	___,	___)
 
 /* Bytecode opcode numbers. */
+// 最终展开结果为：
+// typedef enum {
+//   BC_ISLT,    // = 0
+//   BC_ISGE,    // = 1
+//   BC_ISLE,    // = 2
+//   BC_ISGT,    // = 3
+//   BC_ADDVN,   // = 4
+//   BC_SUBVN,   // = 5
+//   BC_MULVN,   // = 6
+//   /* ... 更多 BC_xxx ... */
+//   BC__MAX     // 最后一个，表示指令总数
+// } BCOp;
 typedef enum {
 #define BCENUM(name, ma, mb, mc, mt)	BC_##name,
-BCDEF(BCENUM)
+BCDEF(BCENUM) // 把BCDEF中的_展开为BCENUM，这样每一行就为如BCENUM(JFUNCV,	rbase,	___,	lit,	___)，
+              //然后BCENUM(JFUNCV,	rbase,	___,	lit,	___)就展开为BC_JFUNCV
 #undef BCENUM
   BC__MAX
 } BCOp;

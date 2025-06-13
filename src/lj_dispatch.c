@@ -70,7 +70,8 @@ void lj_dispatch_init(GG_State *GG)
 
 
 
-  // 下面会创建字节码到汇编函数的映射表，这是虚拟机能够执行Lua字节码的基础，后续可以通过lj_dispatch_update函数
+  // 下面会创建字节码到汇编函数的映射表，这是虚拟机能够执行Lua字节码的基础
+  // ，后续可以通过lj_dispatch_update函数
   // 根据不同的执行模式（JIT开启，录制，调试等）动态更新调度表
   // 动态调度掉，用于实际执行时的指令分派
   for (i = 0; i < GG_LEN_SDISP; i++)
@@ -115,12 +116,12 @@ void lj_dispatch_init_hotcount(global_State *g)
 #endif
 
 /* Internal dispatch mode bits. */
-#define DISPMODE_CALL	0x01	/* Override call dispatch. */
-#define DISPMODE_RET	0x02	/* Override return dispatch. */
-#define DISPMODE_INS	0x04	/* Override instruction dispatch. */
-#define DISPMODE_JIT	0x10	/* JIT compiler on. */
-#define DISPMODE_REC	0x20	/* Recording active. */
-#define DISPMODE_PROF	0x40	/* Profiling active. */
+#define DISPMODE_CALL	0x01  // 调用钩子	/* Override call dispatch. */
+#define DISPMODE_RET	0x02	// 返回钩子 /* Override return dispatch. */
+#define DISPMODE_INS	0x04	// 指令钩子 /* Override instruction dispatch. */
+#define DISPMODE_JIT	0x10	// JIT开启 /* JIT compiler on. */
+#define DISPMODE_REC	0x20	// 正在录制trace /* Recording active. */
+#define DISPMODE_PROF	0x40	// 性能分析 /* Profiling active. */
 
 /* Update dispatch table depending on various flags. */
 void lj_dispatch_update(global_State *g)

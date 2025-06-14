@@ -582,57 +582,103 @@ typedef enum {
 #define basemt_obj(g, o)	((g)->gcroot[GCROOT_BASEMT+itypemap(o)])
 #define mmname_str(g, mm)	(strref((g)->gcroot[GCROOT_MMNAME+(mm)]))
 
+// GCState 是LuaJIT垃圾回收系统的核心状态管理结构
 typedef struct GCState {
-  GCSize total;		/* Memory currently allocated. */
-  GCSize threshold;	/* Memory threshold. */
-  uint8_t currentwhite;	/* Current white color. */
-  uint8_t state;	/* GC state. */
-  uint8_t nocdatafin;	/* No cdata finalizer called. */
-  uint8_t unused2;
-  MSize sweepstr;	/* Sweep position in string table. */
-  GCRef root;		/* List of all collectable objects. */
-  MRef sweep;		/* Sweep position in root list. */
-  GCRef gray;		/* List of gray objects. */
-  GCRef grayagain;	/* List of objects for atomic traversal. */
-  GCRef weak;		/* List of weak tables (to be cleared). */
-  GCRef mmudata;	/* List of userdata (to be finalized). */
-  GCSize debt;		/* Debt (how much GC is behind schedule). */
-  GCSize estimate;	/* Estimate of memory actually in use. */
-  MSize stepmul;	/* Incremental GC step granularity. */
-  MSize pause;		/* Pause between successive GC cycles. */
+  // 内存管理
+  GCSize total;	// 当前分配的总内存	/* Memory currently allocated. */
+  GCSize threshold; // GC触发阈值	/* Memory threshold. */
+  GCSize estimate; // 实际使用内存的估计值	/* Estimate of memory actually in use. */
+  GCSize debt; // GC延迟量（GC落后于计划的程度）		/* Debt (how much GC is behind schedule). */
+
+  // GC状态控制
+  uint8_t currentwhite;	// 当前白色标记 /* Current white color. */
+  uint8_t state; // GC状态	/* GC state. */
+  uint8_t nocdatafin; // 是否使用cdata终结器	/* No cdata finalizer called. */
+  uint8_t unused2; // 保留字段	/* Unused. */
+
+  // 扫描位置
+  MSize sweepstr; // 字符串表扫描位置	/* Sweep position in string table. */
+  MRef sweep; // 根列表扫描位置		/* Sweep position in root list. */
+
+  // 对象列表
+  GCRef root; // 所有可回收对象的列表	/* List of all collectable objects. */
+  GCRef gray;	// 灰色对象列表	/* List of gray objects. */
+  GCRef grayagain; // 需要原子遍历的对象列表	/* List of objects for atomic traversal. */
+  GCRef weak;	// 弱表列表（需要清理）	/* List of weak tables (to be cleared). */
+  GCRef mmudata;	// 需要终结的userdata列表 /* List of userdata (to be finalized). */
+
+  // GC控制参数
+  MSize stepmul; // 增量GC步长粒度	/* Incremental GC step granularity. */
+  MSize pause;	// GC周期之间的暂停时间	/* Pause between successive GC cycles. */
 } GCState;
 
 /* Global state, shared by all threads of a Lua universe. */
+// global_State 是LuaJIT中标识全局状态的核心数据结构，它被所有线程共享
 typedef struct global_State {
-  GCRef *strhash;	/* String hash table (hash chain anchors). */
-  MSize strmask;	/* String hash mask (size of hash table - 1). */
-  MSize strnum;		/* Number of strings in hash table. */
-  lua_Alloc allocf;	/* Memory allocator. */
-  void *allocd;		/* Memory allocator data. */
-  GCState gc;		/* Garbage collector. */
-  volatile int32_t vmstate;  /* VM state or current JIT code trace number. */
-  SBuf tmpbuf;		/* Temporary string buffer. */
-  GCstr strempty;	/* Empty string. */
-  uint8_t stremptyz;	/* Zero terminator of empty string. */
-  uint8_t hookmask;	/* Hook mask. */
-  uint8_t dispatchmode;	/* Dispatch mode. */
-  uint8_t vmevmask;	/* VM event mask. */
-  GCRef mainthref;	/* Link to main thread. */
+  // 字符串管理：
+  // - 使用字符串 intern 池优化内存使用，在LuaJIT中，这个功能通过 global_State 中的strhash，strmask，
+  //   strnum，strempty等字段实现。
+  //   - 字符串intern的核心思想是：
+  //      - 相同的字符串只存储一次
+  //      - 所有引用都指向同一个内存位置
+  //      - 通过哈希表快速查找已存在的字符串
+  // - 通过哈希表快速查找字符串
+  GCRef *strhash;	// 字符串哈希表（哈希链锚点）/* String hash table (hash chain anchors). */
+  MSize strmask; // 字符串哈希掩码（哈希表大小-1）	/* String hash mask (size of hash table - 1). */
+  MSize strnum;	 // 哈希表的字符串数量	/* Number of strings in hash table. */
+  GCstr strempty; // 空字符串	/* Empty string. */
+  uint8_t stremptyz; // 空字符串的零终止符	/* Zero terminator of empty string. */
+
+  // 内存管理：
+  // - 通过 allocf 和 allocd 管理内存分配
+  // - 通过gc管理垃圾回收
+  lua_Alloc allocf; // 内存分配函数	/* Memory allocator. */
+  void *allocd; // 内存分配器数据		/* Memory allocator data. */
+  GCState gc;	// 垃圾收集器状态	/* Garbage collector. */
+
+  // 虚拟机管理
+  volatile int32_t vmstate; // VM状态或当前JIT代码跟踪号  /* VM state or current JIT code trace number. */
+  uint8_t dispatchmode; // 分派模式	/* Dispatch mode. */
+  uint8_t vmevmask; // VM事件掩码	/* VM event mask. */
+
+  // 线程管理
+  // - 维护主线程引用
+  // - 跟踪当前执行线程
+  GCRef mainthref; // 主线程的引用	/* Link to main thread. */
+  GCRef cur_L; // 当前执行的lua_State		/* Currently executing lua_State. */
+
+  // 钩子（Hook）系统
+  uint8_t hookmask; // 钩子掩码	/* Hook mask. */
+  int32_t hookcount; // 指令钩子倒计时	/* Instruction hook countdown. */
+  int32_t hookcstart; // 指令钩子计数器的起始值	/* Start count for instruction hook counter. */
+  lua_Hook hookf; // 钩子函数	/* Hook function. */
+
+  // 错误处理
+  lua_CFunction panic; // 作为最后手段调用的错误处理函数 	/* Called as a last resort for errors. */
+  lua_CFunction wrapf; // C函数调用的包装器	/* Wrapper for C function calls. */
+
+  // JIT支持
+  // - 管理JIT编译状态
+  // - 处理字节码生成
+  MRef jit_base; // 当前JIT代码L->base或NULL	/* Current JIT code L->base or NULL. */
+  BCIns bc_cfunc_int; // 内部C函数调用的字节码	/* Bytecode for internal C function calls. */
+  BCIns bc_cfunc_ext; // 外部C函数调用的字节码	/* Bytecode for external C function calls. */
+
+  // 临时缓冲区
+  SBuf tmpbuf; // 临时字符串缓冲区		/* Temporary string buffer. */
+  TValue tmptv, tmptv2; // 临时TValues	/* Temporary TValues. */
+
+  // 注册表的锚点
   TValue registrytv;	/* Anchor for registry. */
-  TValue tmptv, tmptv2;	/* Temporary TValues. */
-  Node nilnode;		/* Fallback 1-element hash part (nil key and value). */
-  GCupval uvhead;	/* Head of double-linked list of all open upvalues. */
-  int32_t hookcount;	/* Instruction hook countdown. */
-  int32_t hookcstart;	/* Start count for instruction hook counter. */
-  lua_Hook hookf;	/* Hook function. */
-  lua_CFunction wrapf;	/* Wrapper for C function calls. */
-  lua_CFunction panic;	/* Called as a last resort for errors. */
-  BCIns bc_cfunc_int;	/* Bytecode for internal C function calls. */
-  BCIns bc_cfunc_ext;	/* Bytecode for external C function calls. */
-  GCRef cur_L;		/* Currently executing lua_State. */
-  MRef jit_base;	/* Current JIT code L->base or NULL. */
+
+  // 特殊节点
+  Node nilnode; // 回退1元素哈希部分（nil键和值）		/* Fallback 1-element hash part (nil key and value). */
+  GCupval uvhead; // 所有开放上值的双链表的头	/* Head of double-linked list of all open upvalues. */
+
+  // GC根
+  GCRef gcroot[GCROOT_MAX]; // GC根  /* GC roots. */
+  
   MRef ctype_state;	/* Pointer to C type state. */
-  GCRef gcroot[GCROOT_MAX];  /* GC roots. */
 } global_State;
 
 #define mainthread(g)	(&gcref(g->mainthref)->th)
@@ -659,20 +705,44 @@ typedef struct global_State {
 
 /* Per-thread state object. */
 // Lua状态对象
+// lua_State 是 LuaJIT 中表示一个Lua线程（协程）的核心数据结构
+// 每个 lua_State 代表一个独立的执行线程
+// 可以创建多个 lua_State 实现协程
 struct lua_State {
-  GCHeader;
-  uint8_t dummy_ffid;	/* Fake FF_C for curr_funcisL() on dummy frames. */
-  uint8_t status;	/* Thread status. */
-  MRef glref;		/* Link to global state. */
-  GCRef gclist;		/* GC chain. */
-  TValue *base;		/* Base of currently executing function. */
-  TValue *top;		/* First free slot in the stack. */
-  MRef maxstack;	/* Last free slot in the stack. */
-  MRef stack;		/* Stack base. */
-  GCRef openupval;	/* List of open upvalues in the stack. */
-  GCRef env;		/* Thread environment (table of globals). */
+  // 内存管理：
+  // - GCHeader包括垃圾回收所需信息
+  // - gclist 用于垃圾回收链
+  // - openupval 管理开放的上值
+  GCHeader; // 垃圾回收相关的头部信息
+  GCRef gclist; // GC链		/* GC chain. */
+  GCRef openupval; // 线程环境（全局变量表）	/* List of open upvalues in the stack. */
+
+  uint8_t dummy_ffid; // 用于虚拟帧的 FF_C 标识	/* Fake FF_C for curr_funcisL() on dummy frames. */
+ 
+  // 栈管理：
+  //   - base和top用于管理Lua栈
+  //   - stack指向栈的起始位置
+  //   - maxstack 定义了栈的最大容量
+  //   - stacksize 记录实际分配的栈大小
+  TValue *base;	// 当前执行函数的栈基址	/* Base of currently executing function. */
+  TValue *top; // 栈顶（第一个空闲槽位）		/* First free slot in the stack. */
+  MRef stack;	// 栈的基址	/* Stack base. */
+  MRef maxstack; // 栈的最大容量	/* Last free slot in the stack. */
+  MSize stacksize; // 实际栈大小（包含额外空间）	/* True stack size (incl. LJ_STACK_EXTRA). */
+
+  // 状态管理：
+  // - status记录线程的当前状态
+  // - glref 链接到全局状态
+  // - env 存储全局变量表
+  uint8_t status;	// 线程状态 /* Thread status. */
+  MRef glref;	// 指向全局状态的引用	/* Link to global state. */
+  GCRef env;	// 线程环境（全局变量表）	/* Thread environment (table of globals). */
+
+  // 函数调用：
+  // - base 指向当前执行函数的栈基址
+  // - cframe 用于C函数调用
+  // - 支持 Lua 和 C 代码之间的交互
   void *cframe;		/* End of C stack frame chain. */
-  MSize stacksize;	/* True stack size (incl. LJ_STACK_EXTRA). */
 }; // 线程对象
 
 #define G(L)			(mref(L->glref, global_State))

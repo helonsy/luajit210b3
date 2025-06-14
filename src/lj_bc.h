@@ -71,6 +71,20 @@
 ** B = unsigned byte literal
 ** M = multiple args/results
 */
+// 第一个参数：指令名称
+// 第二个参数：操作数A的类型 (如var、dst、base等)
+// 第三个参数：操作数B的类型
+// 第四个参数：操作数C的类型
+// 第五个参数：元方法 （如lt、eq、add等）
+// 特殊标记：
+//    - __：表示该操作数不使用
+//    - var：变量
+//    - dst：目标
+//    - base: 基础
+//    - lit: 字面量
+//    - str：字符串
+//    - num：数字
+//    - pri：原始类型
 #define BCDEF(_) \
   /* Comparison ops. ORDER OPR. */ \
   /* ISLT 是 是否小于 的意思 */ \

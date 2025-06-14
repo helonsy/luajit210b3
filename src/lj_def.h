@@ -247,7 +247,7 @@ static LJ_AINLINE uint32_t lj_getu32(const void *p)
 #elif defined(_MSC_VER)
 
 #define LJ_NORET	__declspec(noreturn)
-#define LJ_ALIGN(n)	__declspec(align(n))
+#define LJ_ALIGN(n)	__declspec(align(n)) // 按照n字节对齐
 #define LJ_INLINE	__inline
 #define LJ_AINLINE	__forceinline
 #define LJ_NOINLINE	__declspec(noinline)

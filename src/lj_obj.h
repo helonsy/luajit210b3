@@ -24,6 +24,7 @@ typedef uint32_t GCSize;
 #endif
 
 /* Memory reference */
+// 用于处理内存引用
 typedef struct MRef {
 #if LJ_GC64
   uint64_t ptr64;	/* True 64 bit pointer. */
@@ -56,6 +57,7 @@ typedef struct GCRef {
 } GCRef;
 
 /* Common GC header for all collectable objects. */
+// 定义了所有可回收对象的基本结构，类似于继承的基类
 #define GCHeader	GCRef nextgc; uint8_t marked; uint8_t gct
 /* This occupies 6 bytes, so use the next 2 bytes for non-32 bit fields. */
 
@@ -171,29 +173,36 @@ typedef union {
 /* Tagged value. */
 typedef LJ_ALIGN(8) union TValue {
   uint64_t u64;		/* 64 bit pattern overlaps number. */
-  lua_Number n;		/* Number object overlaps split tag/value object. */
+  lua_Number n;	// Lua数字类型	/* Number object overlaps split tag/value object. */
 #if LJ_GC64
-  GCRef gcr;		/* GCobj reference with tag. */
+  GCRef gcr;		// 带标签的GC对象引用/* GCobj reference with tag. */
   int64_t it64;
   struct {
     LJ_ENDIAN_LOHI(
       int32_t i;	/* Integer value. */
-    , uint32_t it;	/* Internal object tag. Must overlap MSW of number. */
+    , uint32_t it;	// 内部对象标签（内部对象的类型）	/* Internal object tag. Must overlap MSW of number. */
     )
   };
 #else
   struct {
-    LJ_ENDIAN_LOHI(
+    LJ_ENDIAN_LOHI( // 用于确保代码在不同字节序的处理器上都能正确工作
       union {
-	GCRef gcr;	/* GCobj reference (if any). */
+	GCRef gcr;	// GC 对象引用 /* GCobj reference (if any). */
 	int32_t i;	/* Integer value. */
       };
-    , uint32_t it;	/* Internal object tag. Must overlap MSW of number. */
+    , uint32_t it;	// 内部对象标签（内部对象的类型）	/* Internal object tag. Must overlap MSW of number. */
     )
   };
 #endif
+
+// LJ_FR2 是 LuaJIT 中一个重要的编译时配置选项，用于控制函数帧（Function Frame）的布局方式
+// 函数帧的概念：
+//   - 函数帧是存储函数执行状态的数据结构
+//   - 包含局部变量，参数，返回地址等信息
+// LJ_FR2 模式：使用更紧凑的64位标识
+// 非 LJ_FR2 模式：使用分离的结构体表示
 #if LJ_FR2
-  int64_t ftsz;		/* Frame type and size of previous frame, or PC. */
+  int64_t ftsz; // 前一帧的类型和大小，或程序计数器		/* Frame type and size of previous frame, or PC. */
 #else
   struct {
     LJ_ENDIAN_LOHI(
@@ -204,8 +213,8 @@ typedef LJ_ALIGN(8) union TValue {
 #endif
   struct {
     LJ_ENDIAN_LOHI(
-      uint32_t lo;	/* Lower 32 bits of number. */
-    , uint32_t hi;	/* Upper 32 bits of number. */
+      uint32_t lo;	// 到下一帧的函数 /* Lower 32 bits of number. */
+    , uint32_t hi;	// 到前一帧的链接 /* Upper 32 bits of number. */
     )
   } u32;
 } TValue;
@@ -288,13 +297,14 @@ typedef const TValue cTValue;
 /* -- String object ------------------------------------------------------- */
 
 /* String object header. String payload follows. */
+//
 typedef struct GCstr {
   GCHeader;
   uint8_t reserved;	/* Used by lexer for fast lookup of reserved words. */
   uint8_t unused;
   MSize hash;		/* Hash of string. */
   MSize len;		/* Size of string. */
-} GCstr;
+} GCstr; // 字符串对象
 
 #define strref(r)	(&gcref((r))->str)
 #define strdata(s)	((const char *)((s)+1))
@@ -313,7 +323,7 @@ typedef struct GCudata {
   MSize len;		/* Size of payload. */
   GCRef metatable;	/* Must be at same offset in GCtab. */
   uint32_t align1;	/* To force 8 byte alignment of the payload. */
-} GCudata;
+} GCudata; // 用户数据对象
 
 /* Userdata types. */
 enum {
@@ -332,7 +342,7 @@ enum {
 typedef struct GCcdata {
   GCHeader;
   uint16_t ctypeid;	/* C type ID. */
-} GCcdata;
+} GCcdata; // C数据对象
 
 /* Prepended to variable-sized or realigned C data objects. */
 typedef struct GCcdataVar {
@@ -377,7 +387,7 @@ typedef struct GCproto {
   MRef lineinfo;	/* Compressed map from bytecode ins. to source line. */
   MRef uvinfo;		/* Upvalue names. */
   MRef varinfo;		/* Names and compressed extents of local variables. */
-} GCproto;
+} GCproto; // 原型对象
 
 /* Flags for prototype. */
 #define PROTO_CHILD		0x01	/* Has child prototypes. */
@@ -450,6 +460,7 @@ typedef struct GCfuncL {
   GCRef uvptr[1];	/* Array of _pointers_ to upvalue objects (GCupval). */
 } GCfuncL;
 
+// 函数对象
 typedef union GCfunc {
   GCfuncC c;
   GCfuncL l;
@@ -479,6 +490,7 @@ typedef struct Node {
 
 LJ_STATIC_ASSERT(offsetof(Node, val) == 0);
 
+// 表对象
 typedef struct GCtab {
   GCHeader;
   uint8_t nomm;		/* Negative cache for fast metamethods. */
@@ -492,7 +504,7 @@ typedef struct GCtab {
 #if LJ_GC64
   MRef freetop;		/* Top of free elements. */
 #endif
-} GCtab;
+} GCtab; // 表对象
 
 #define sizetabcolo(n)	((n)*sizeof(TValue) + sizeof(GCtab))
 #define tabref(r)	(&gcref((r))->tab)
@@ -646,6 +658,7 @@ typedef struct global_State {
   ((g)->hookmask = ((g)->hookmask & HOOK_EVENTMASK) | (h))
 
 /* Per-thread state object. */
+// Lua状态对象
 struct lua_State {
   GCHeader;
   uint8_t dummy_ffid;	/* Fake FF_C for curr_funcisL() on dummy frames. */
@@ -660,7 +673,7 @@ struct lua_State {
   GCRef env;		/* Thread environment (table of globals). */
   void *cframe;		/* End of C stack frame chain. */
   MSize stacksize;	/* True stack size (incl. LJ_STACK_EXTRA). */
-};
+}; // 线程对象
 
 #define G(L)			(mref(L->glref, global_State))
 #define registry(L)		(&G(L)->registrytv)
@@ -681,6 +694,7 @@ struct lua_State {
 /* -- GC object definition and conversions -------------------------------- */
 
 /* GC header for generic access to common fields of GC objects. */
+// 这是所有可回收对象的基类
 typedef struct GChead {
   GCHeader;
   uint8_t unused1;

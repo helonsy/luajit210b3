@@ -604,59 +604,70 @@ static void atomic(global_State *g, lua_State *L)
 }
 
 /* GC state machine. Returns a cost estimate for each step performed. */
+// 增量式执行：每次只执行一小部分工作，避免长时间暂停
+// 状态机设计：通过状态转换控制 GC 流程
+// 成本控制：每个阶段都返回一个成本估计值
+// JIT 友好：在 JIT 编译时会延迟某些操作
+// 内存优化：会适时收缩字符串表等数据结构
 static size_t gc_onestep(lua_State *L)
 {
   global_State *g = G(L);
   switch (g->gc.state) {
-  case GCSpause:
-    gc_mark_start(g);  /* Start a new GC cycle by marking all GC roots. */
+  case GCSpause: // 暂停状态
+    // 开始新的 GC 周期，标记所有 GC 根
+    //   - 这是 GC 周期的开始
+    //   - 调用 gc_mark_start 标记所有根对象
+    //   - 将状态切换到 GCSpropagate
+    gc_mark_start(g);   /* Start a new GC cycle by marking all GC roots. */
     return 0;
-  case GCSpropagate:
+  case GCSpropagate: // 传播阶段
     if (gcref(g->gc.gray) != NULL)
+      // 如果还有灰色对象，传播一个灰色对象
       return propagatemark(g);  /* Propagate one gray object. */
-    g->gc.state = GCSatomic;  /* End of mark phase. */
+    g->gc.state = GCSatomic; // 如果没有灰色对象，进入原子阶段  /* End of mark phase. */
     return 0;
-  case GCSatomic:
-    if (tvref(g->jit_base))  /* Don't run atomic phase on trace. */
+  case GCSatomic: // 原子阶段
+    if (tvref(g->jit_base))  // 如果正在 JIT 编译，则延迟执行 /* Don't run atomic phase on trace. */
       return LJ_MAX_MEM;
-    atomic(g, L);
-    g->gc.state = GCSsweepstring;  /* Start of sweep phase. */
+    atomic(g, L); // 执行原子操作，完成标记阶段
+    g->gc.state = GCSsweepstring; // 进入字符串清理阶段  /* Start of sweep phase. */
     g->gc.sweepstr = 0;
     return 0;
-  case GCSsweepstring: {
+  case GCSsweepstring: // 字符串清理阶段
+  {
     GCSize old = g->gc.total;
     gc_fullsweep(g, &g->strhash[g->gc.sweepstr++]);  /* Sweep one chain. */
     if (g->gc.sweepstr > g->strmask)
-      g->gc.state = GCSsweep;  /* All string hash chains sweeped. */
-    lua_assert(old >= g->gc.total);
+      g->gc.state = GCSsweep; // 所有字符串链表都已清理，进入对象清理阶段  /* All string hash chains sweeped. */
+    lua_assert(old >= g->gc.total); // 更新内存使用估计
     g->gc.estimate -= old - g->gc.total;
     return GCSWEEPCOST;
     }
-  case GCSsweep: {
+  case GCSsweep: { // 对象清理阶段
     GCSize old = g->gc.total;
-    setmref(g->gc.sweep, gc_sweep(g, mref(g->gc.sweep, GCRef), GCSWEEPMAX));
+    setmref(g->gc.sweep, gc_sweep(g, mref(g->gc.sweep, GCRef), GCSWEEPMAX)); // 每次最多清理 GCSWEEPMAX 个对象
     lua_assert(old >= g->gc.total);
-    g->gc.estimate -= old - g->gc.total;
+    g->gc.estimate -= old - g->gc.total; // 更新内存使用估计
     if (gcref(*mref(g->gc.sweep, GCRef)) == NULL) {
       if (g->strnum <= (g->strmask >> 2) && g->strmask > LJ_MIN_STRTAB*2-1)
-	lj_str_resize(L, g->strmask >> 1);  /* Shrink string table. */
-      if (gcref(g->gc.mmudata)) {  /* Need any finalizations? */
+	lj_str_resize(L, g->strmask >> 1); // 收缩字符串表   /* Shrink string table. */
+      if (gcref(g->gc.mmudata)) { // 需要终结化？ /* Need any finalizations? */
 	g->gc.state = GCSfinalize;
 #if LJ_HASFFI
 	g->gc.nocdatafin = 1;
 #endif
-      } else {  /* Otherwise skip this phase to help the JIT. */
-	g->gc.state = GCSpause;  /* End of GC cycle. */
+      } else { // 否则跳过这个阶段，帮助JIT  /* Otherwise skip this phase to help the JIT. */
+	g->gc.state = GCSpause; // 结束GC周期  /* End of GC cycle. */
 	g->gc.debt = 0;
       }
     }
     return GCSWEEPMAX*GCSWEEPCOST;
     }
-  case GCSfinalize:
+  case GCSfinalize: // 终结阶段
     if (gcref(g->gc.mmudata) != NULL) {
-      if (tvref(g->jit_base))  /* Don't call finalizers on trace. */
+      if (tvref(g->jit_base)) // 如果正在 JIT 编译，则延迟执行  /* Don't call finalizers on trace. */
 	return LJ_MAX_MEM;
-      gc_finalize(L);  /* Finalize one userdata object. */
+      gc_finalize(L); // 终结一个 userdata 对象  /* Finalize one userdata object. */
       if (g->gc.estimate > GCFINALIZECOST)
 	g->gc.estimate -= GCFINALIZECOST;
       return GCFINALIZECOST;
@@ -664,7 +675,7 @@ static size_t gc_onestep(lua_State *L)
 #if LJ_HASFFI
     if (!g->gc.nocdatafin) lj_tab_rehash(L, ctype_ctsG(g)->finalizer);
 #endif
-    g->gc.state = GCSpause;  /* End of GC cycle. */
+    g->gc.state = GCSpause; //  GC 周期结束  /* End of GC cycle. */
     g->gc.debt = 0;
     return 0;
   default:
@@ -674,31 +685,38 @@ static size_t gc_onestep(lua_State *L)
 }
 
 /* Perform a limited amount of incremental GC steps. */
+// 返回值的含义：返回 1：完成了一个完整的 GC 周期，返回 0：GC 工作正常进行，但未完成周期， 返回 -1：需要更多 GC 工作
+// 增量式执行：通过 lim 限制每次执行的工作量, 避免长时间暂停程序执行
+// 自适应阈值：根据内存使用情况动态调整 GC 阈值，通过 debt 机制确保及时回收内存
+// 状态管理：保存和恢复虚拟机状态，确保 GC 操作不会影响程序执行
+// 性能优化：使用 LJ_FASTCALL 优化函数调用，根据系统架构选择合适的数据类型（32位/64位）
+// 内存控制：通过 threshold 控制 GC 触发时机，通过 debt 机制确保内存及时回收
 int LJ_FASTCALL lj_gc_step(lua_State *L)
 {
   global_State *g = G(L);
   GCSize lim;
-  int32_t ostate = g->vmstate;
-  setvmstate(g, GC);
-  lim = (GCSTEPSIZE/100) * g->gc.stepmul;
+  int32_t ostate = g->vmstate; // 保存当前虚拟机状态
+  setvmstate(g, GC); // 将虚拟机状态设置为 GC 状态
+  lim = (GCSTEPSIZE/100) * g->gc.stepmul; // 根据 GCSTEPSIZE（1024）和 stepmul 计算每次 GC 的工作量
   if (lim == 0)
-    lim = LJ_MAX_MEM;
+    lim = LJ_MAX_MEM; // 如果计算结果为 0，则使用最大内存值作为限制
   if (g->gc.total > g->gc.threshold)
-    g->gc.debt += g->gc.total - g->gc.threshold;
+    g->gc.debt += g->gc.total - g->gc.threshold;  // 如果当前内存使用超过阈值，增加 GC 债务，债务表示需要回收的内存量
   do {
-    lim -= (GCSize)gc_onestep(L);
+    // 每次执行 gc_onestep 后减少剩余工作量
+    lim -= (GCSize)gc_onestep(L); // 循环执行 gc_onestep 直到 达到工作量限制（lim <= 0）或者 或者完成一个完整的 GC 周期（状态回到 GCSpause）
     if (g->gc.state == GCSpause) {
       g->gc.threshold = (g->gc.estimate/100) * g->gc.pause;
       g->vmstate = ostate;
-      return 1;  /* Finished a GC cycle. */
+      return 1;  // 如果完成一个周期，更新 GC 阈值并返回 1 /* Finished a GC cycle. */
     }
   } while (sizeof(lim) == 8 ? ((int64_t)lim > 0) : ((int32_t)lim > 0));
   if (g->gc.debt < GCSTEPSIZE) {
-    g->gc.threshold = g->gc.total + GCSTEPSIZE;
+    g->gc.threshold = g->gc.total + GCSTEPSIZE; // 如果 GC 债务小于 GCSTEPSIZE, 设置新的阈值为当前内存使用量加上 GCSTEPSIZE
     g->vmstate = ostate;
-    return -1;
+    return -1; // 返回 -1 表示需要更多 GC 工作
   } else {
-    g->gc.debt -= GCSTEPSIZE;
+    g->gc.debt -= GCSTEPSIZE; // 减少 GC 债务,设置阈值为当前内存使用量,返回 0 表示 GC 工作正常进行
     g->gc.threshold = g->gc.total;
     g->vmstate = ostate;
     return 0;

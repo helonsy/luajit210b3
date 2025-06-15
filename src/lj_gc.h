@@ -9,11 +9,19 @@
 #include "lj_obj.h"
 
 /* Garbage collector states. Order matters. */
+// 垃圾收集器状态
+// 1. GCSpause: 暂停状态
+// 2. GCSpropagate: 传播阶段
+// 3. GCSatomic: 原子阶段
+// 4. GCSsweepstring: 字符串清理阶段
+// 5. GCSsweep: 清理阶段
+// 6. GCSfinalize: 终结阶段
 enum {
   GCSpause, GCSpropagate, GCSatomic, GCSsweepstring, GCSsweep, GCSfinalize
 };
 
 /* Bitmasks for marked field of GCobj. */
+// 采用了三色标记算法（白色，灰色，黑色）
 #define LJ_GC_WHITE0	0x01
 #define LJ_GC_WHITE1	0x02
 #define LJ_GC_BLACK	0x04

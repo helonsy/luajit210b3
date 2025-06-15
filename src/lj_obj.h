@@ -582,6 +582,165 @@ typedef enum {
 #define basemt_obj(g, o)	((g)->gcroot[GCROOT_BASEMT+itypemap(o)])
 #define mmname_str(g, mm)	(strref((g)->gcroot[GCROOT_MMNAME+(mm)]))
 
+
+// 1. 垃圾回收状态管理
+//   i. 颜色标记系统
+      /*
+      // 伪代码
+      #define WHITE0 0
+      #define WHITE1 1
+      #define BLACK 2
+      #define GRAY 3
+
+      // 切换白色标记
+      void flip_white(GCState *g) {
+          g->currentwhite = (g->currentwhite == WHITE0) ? WHITE1 : WHITE0;
+      }
+      */
+//   ii. GC状态转换
+      /*
+      // 伪代码
+      typedef enum {
+          GCST_IDLE,      // 空闲状态
+          GCST_MARK,      // 标记阶段
+          GCST_SWEEP,     // 清除阶段
+          GCST_FINALIZE   // 终结阶段
+      } GCStateEnum;
+
+      void set_gc_state(GCState *g, GCStateEnum state) {
+          g->state = state;
+      }
+      */
+// 2. 内存管理实现
+//   i. 内存分配跟踪
+      /*
+      // 伪代码
+      void* lj_mem_alloc(GCState *g, size_t size) {
+          void* ptr = malloc(size);
+          if (ptr) {
+              g->total += size;
+              // 检查是否需要触发GC
+              if (g->total > g->threshold) {
+                  trigger_gc(g);
+              }
+          }
+          return ptr;
+      }
+      */
+//   ii. GC触发机制
+      /*
+      // 伪代码
+      void trigger_gc(GCState *g) {
+          if (g->state == GCST_IDLE) {
+              g->debt = g->total - g->threshold;
+              set_gc_state(g, GCST_MARK);
+          }
+      }
+      */
+// 3. 对象管理
+//   i. 对象列表管理
+      /*
+      // 伪代码
+      void add_to_root_list(GCState *g, GCobj *o) {
+          o->nextgc = g->root;
+          g->root = o;
+      }
+
+      void add_to_gray_list(GCState *g, GCobj *o) {
+          o->nextgc = g->gray;
+          g->gray = o;
+      }
+      */
+//   ii. 弱表处理
+      /*
+      // 伪代码
+      void process_weak_tables(GCState *g) {
+          GCobj *o = gcref(g->weak);
+          while (o) {
+              GCobj *next = gcref(o->nextgc);
+              clear_weak_table(o);
+              o = next;
+          }
+      }
+      */
+// 4. 增量GC实现
+//   i. 步长控制
+      /*
+      // 伪代码
+      void incremental_gc_step(GCState *g) {
+          size_t stepsize = g->stepmul * g->debt;
+          
+          switch (g->state) {
+              case GCST_MARK:
+                  mark_step(g, stepsize);
+                  break;
+              case GCST_SWEEP:
+                  sweep_step(g, stepsize);
+                  break;
+              case GCST_FINALIZE:
+                  finalize_step(g, stepsize);
+                  break;
+          }
+      }
+      */
+//   ii. 暂停控制
+      /*
+      // 伪代码
+      void adjust_gc_pause(GCState *g) {
+          if (g->pause > 0) {
+              g->pause--;
+              if (g->pause == 0) {
+                  resume_gc(g);
+              }
+          }
+      }
+      */
+// 5. 实际使用示例
+      /*
+      // 伪代码
+      void gc_cycle(GCState *g) {
+          // 1. 标记阶段
+          set_gc_state(g, GCST_MARK);
+          mark_all_roots(g);
+          
+          // 2. 清除阶段
+          set_gc_state(g, GCST_SWEEP);
+          sweep_all_objects(g);
+          
+          // 3. 终结阶段
+          set_gc_state(g, GCST_FINALIZE);
+          finalize_objects(g);
+          
+          // 4. 重置状态
+          set_gc_state(g, GCST_IDLE);
+          g->debt = 0;
+          g->estimate = g->total;
+      }
+      */
+// 6. 性能优化
+//   i. 内存估计
+      /*
+      // 伪代码
+      void update_memory_estimate(GCState *g) {
+          g->estimate = g->total - g->debt;
+          // 调整GC阈值
+          g->threshold = g->estimate * 2;
+      }
+      */
+//   ii. 增量GC优化
+      /*
+      // 伪代码
+      void optimize_gc_steps(GCState *g) {
+          // 根据内存使用情况调整步长
+          if (g->debt > g->threshold) {
+              g->stepmul = 2;  // 加快GC
+          } else {
+              g->stepmul = 1;  // 正常速度
+          }
+      }
+      */
+
+
 // GCState 是LuaJIT垃圾回收系统的核心状态管理结构
 typedef struct GCState {
   // 内存管理

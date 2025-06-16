@@ -1008,6 +1008,8 @@ typedef union GCobj {
 #define tvistruecond(o)	(itype(o) < LJ_TISTRUECOND)
 #define tvispri(o)	(itype(o) >= LJ_TISPRI)
 #define tvistabud(o)	(itype(o) <= LJ_TISTABUD)  /* && !tvisnum() */
+// tvisgcv = "test if value is garbage collected value"，用于判断一个值是否需要被垃圾回收器管理
+// GC 对象类型：字符串 (LJ_TSTR)，上值 (LJ_TUPVAL)，线程 (LJ_TTHREAD)，函数 (LJ_TFUNC)，表 (LJ_TTAB)，用户数据 (LJ_TUDATA)
 #define tvisgcv(o)	((itype(o) - LJ_TISGCV) > (LJ_TNUMX - LJ_TISGCV))
 
 /* Special macros to test numbers for NaN, +0, -0, +1 and raw equality. */

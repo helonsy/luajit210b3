@@ -20,17 +20,18 @@
 #include "lj_meta.h"
 #include "lj_state.h"
 #include "lj_frame.h"
-#if LJ_HASFFI
+#if LJ_HASFFI // FFI = Foreign Function Interface（外部函数接口），允许 Lua 代码直接调用 C 函数，允许直接访问 C 数据结构
 #include "lj_ctype.h"
 #include "lj_cdata.h"
 #endif
 #include "lj_trace.h"
 #include "lj_vm.h"
 
-#define GCSTEPSIZE	1024u
-#define GCSWEEPMAX	40
-#define GCSWEEPCOST	10
-#define GCFINALIZECOST	100
+#define GCSTEPSIZE	1024u // 定义每次 GC 步骤的工作量大小，值越大，每次 GC 步骤处理的对象越多，值越小，GC 暂停时间越短，但总耗时可能增加
+#define GCSWEEPMAX	40 // 定义每次清理阶段最多处理的对象数量
+#define GCSWEEPCOST	10 // 定义清理一个对象的成本，用于计算 GC 工作量的单位，帮助 GC 系统评估清理工作的开销，影响 GC 调度的决策
+#define GCFINALIZECOST	100 // 定义终结器（finalizer）处理的成本，终结器是对象被回收前调用的清理函数，这个值较大是因为终结器处理通常比较耗时
+                            // 用于平衡终结器处理和普通 GC 工作
 
 /* Macros to set GCobj colors and flags. */
 #define white2gray(x)		((x)->gch.marked &= (uint8_t)~LJ_GC_WHITES)
@@ -769,7 +770,14 @@ void lj_gc_fullgc(lua_State *L)
 }
 
 /* -- Write barriers ------------------------------------------------------ */
-
+// 在增量式垃圾回收中，写屏障是必须的：
+//  - 并发修改问题：
+//     - 当GC在标记阶段时，程序可能正在修改对象引用，如果没有写屏障，可能会漏掉新创建的引用关系，导致对象错误地回收
+//  - 三色标记算法的要求：
+//     - 黑色对象：已完全扫描的对象
+//     - 灰色对象：正在扫描的对象
+//     - 白色对象：未扫描的对象
+//     - 写屏障确保黑色对象不会引用白色对象
 /* Move the GC propagation frontier forward. */
 void lj_gc_barrierf(global_State *g, GCobj *o, GCobj *v)
 {
@@ -777,10 +785,11 @@ void lj_gc_barrierf(global_State *g, GCobj *o, GCobj *v)
   lua_assert(g->gc.state != GCSfinalize && g->gc.state != GCSpause);
   lua_assert(o->gch.gct != ~LJ_TTAB);
   /* Preserve invariant during propagation. Otherwise it doesn't matter. */
+  // 在传播阶段保持不变量
   if (g->gc.state == GCSpropagate || g->gc.state == GCSatomic)
-    gc_mark(g, v);  /* Move frontier forward. */
+    gc_mark(g, v); // 向前移动边界  /* Move frontier forward. */
   else
-    makewhite(g, o);  /* Make it white to avoid the following barrier. */
+    makewhite(g, o); // 使其变白以避免后续的屏障  /* Make it white to avoid the following barrier. */
 }
 
 /* Specialized barrier for closed upvalue. Pass &uv->tv. */

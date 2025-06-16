@@ -40,8 +40,10 @@ enum {
 #define iswhite(x)	((x)->gch.marked & LJ_GC_WHITES)
 #define isblack(x)	((x)->gch.marked & LJ_GC_BLACK)
 #define isgray(x)	(!((x)->gch.marked & (LJ_GC_BLACK|LJ_GC_WHITES)))
-#define tviswhite(x)	(tvisgcv(x) && iswhite(gcV(x)))
-#define otherwhite(g)	(g->gc.currentwhite ^ LJ_GC_WHITES)
+#define tviswhite(x)	(tvisgcv(x) && iswhite(gcV(x))) // 这个宏用于检查一个值是否是白色的垃圾回收对象
+#define otherwhite(g)	(g->gc.currentwhite ^ LJ_GC_WHITES) // 这个宏用于获取当前白色集合的补集（另一个白色集合），在 LuaJIT 的垃圾回收中
+                                                          // ，使用了两个白色集合来支持增量式垃圾回收，当前白色集合：g->gc.currentwhite
+                                                          // ，另一个白色集合：otherwhite(g)，通过异或运算（^）切换
 #define isdead(g, v)	((v)->gch.marked & otherwhite(g) & LJ_GC_WHITES)
 
 #define curwhite(g)	((g)->gc.currentwhite & LJ_GC_WHITES)

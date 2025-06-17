@@ -25,12 +25,35 @@ enum {
 #define LJ_GC_WHITE0	0x01
 #define LJ_GC_WHITE1	0x02
 #define LJ_GC_BLACK	0x04
-#define LJ_GC_FINALIZED	0x08
-#define LJ_GC_WEAKKEY	0x08
-#define LJ_GC_WEAKVAL	0x10
-#define LJ_GC_CDATA_FIN	0x10
-#define LJ_GC_FIXED	0x20
-#define LJ_GC_SFIXED	0x40
+// 终结器的概念：
+//  - 终结器是对象被回收前调用的清理函数， 用于释放对象占用的外部资源，在 Lua 中通过 __gc 元方法实现
+#define LJ_GC_FINALIZED	0x08 // 用于标记对象是否已经执行过终结器（finalizer）的标志位
+
+// 弱引用的基本概念：
+//   - 弱引用不会阻止对象被垃圾回收，对象只被弱引用引用时，可以被回收，在 Lua 中通过表的 __mode 元方法实现
+//   - 弱引用 key 的示例
+        // local cache = setmetatable({}, {__mode = "k"})
+        // local key = {id = 1}
+        // cache[key] = "value"
+        // key = nil  -- key 可以被回收
+//   - 弱引用 value 的示例
+        // local pool = setmetatable({}, {__mode = "v"})
+        // local obj = {data = "test"}
+        // pool[1] = obj
+        // obj = nil  -- obj 可以被回收
+//   - local t = setmetatable({}, {__mode = "kv"}) --弱引用 key 和 value
+#define LJ_GC_WEAKKEY	0x08 
+#define LJ_GC_WEAKVAL	0x10 
+
+// C 数据类型（cdata）的概念：
+//   - 通过 FFI（Foreign Function Interface）创建，用于表示 C 语言的数据类型， 可以包含需要清理的外部资源
+#define LJ_GC_CDATA_FIN	0x10 // 用于标记 C 数据类型（cdata）是否已经执行过终结器的标志位
+// 固定对象的概念：
+//   - 固定对象是永远不会被回收的对象，通常用于全局对象或长期存在的对象，避免被垃圾回收器错误回收
+#define LJ_GC_FIXED	0x20 // 用于标记对象是否被固定（fixed）的标志位。被固定的对象不会被垃圾回收器回收。
+// 超级固定对象的概念：
+//   - 比普通固定对象更高级别的保护，在垃圾回收器关闭时仍然保持，通常用于最基础的系统对象
+#define LJ_GC_SFIXED	0x40 // 用于标记对象是否被超级固定（super fixed）的标志位。超级固定的对象在垃圾回收器关闭时也不会被回收。
 
 #define LJ_GC_WHITES	(LJ_GC_WHITE0 | LJ_GC_WHITE1)
 #define LJ_GC_COLORS	(LJ_GC_WHITES | LJ_GC_BLACK)
@@ -44,10 +67,31 @@ enum {
 #define otherwhite(g)	(g->gc.currentwhite ^ LJ_GC_WHITES) // 这个宏用于获取当前白色集合的补集（另一个白色集合），在 LuaJIT 的垃圾回收中
                                                           // ，使用了两个白色集合来支持增量式垃圾回收，当前白色集合：g->gc.currentwhite
                                                           // ，另一个白色集合：otherwhite(g)，通过异或运算（^）切换
+
+// 用于检查一个对象是否可以被回收（是否"死亡"）
+// 假设：
+   // 当前白色集合是 WHITE0 (0x01)
+   // 另一个白色集合是 WHITE1 (0x02)
+   // 假设对象标记(v)->gch.marked是 WHITE0
+   // 则：
+   // WHITE0 & WHITE1 & (WHITE0 | WHITE1) = 0
+   // 对象不是死亡的
 #define isdead(g, v)	((v)->gch.marked & otherwhite(g) & LJ_GC_WHITES)
 
+// 假设 currentwhite 是 WHITE0 (0x01)
+// 则 curwhite(g) 返回 WHITE0
+// 如果 currentwhite 是 WHITE1 (0x02)
+// 则 curwhite(g) 返回 WHITE1
 #define curwhite(g)	((g)->gc.currentwhite & LJ_GC_WHITES)
+
+// 用于将对象标记为当前白色集合
+   // 假设 currentwhite 是 WHITE0 (0x01)
+   // 则 newwhite(g, x) 将对象的标记位设置为 WHITE0
+   // 如果 currentwhite 是 WHITE1 (0x02)
+   // 则 newwhite(g, x) 将对象的标记位设置为 WHITE1
 #define newwhite(g, x)	(obj2gco(x)->gch.marked = (uint8_t)curwhite(g))
+
+// 用于将对象标记为当前白色集合，同时保留其他标记位。
 #define makewhite(g, x) \
   ((x)->gch.marked = ((x)->gch.marked & (uint8_t)~LJ_GC_COLORS) | curwhite(g))
 #define flipwhite(x)	((x)->gch.marked ^= LJ_GC_WHITES)
@@ -58,7 +102,7 @@ enum {
 /* Collector. */
 LJ_FUNC size_t lj_gc_separateudata(global_State *g, int all);
 LJ_FUNC void lj_gc_finalize_udata(lua_State *L);
-#if LJ_HASFFI
+#if LJ_HASFFI // FFI = Foreign Function Interface（外部函数接口），允许 Lua 代码直接调用 C 函数，允许直接访问 C 数据结构
 LJ_FUNC void lj_gc_finalize_cdata(lua_State *L);
 #else
 #define lj_gc_finalize_cdata(L)		UNUSED(L)

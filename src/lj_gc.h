@@ -92,9 +92,31 @@ enum {
 #define newwhite(g, x)	(obj2gco(x)->gch.marked = (uint8_t)curwhite(g))
 
 // 用于将对象标记为当前白色集合，同时保留其他标记位。
+   // 假设：
+   // LJ_GC_COLORS = 0x07 (0b111)
+   // ~LJ_GC_COLORS = 0xF8 (0b11111000)
+   // 对象标记是 0x0F (0b1111)
+   // 则：
+   // 0x0F & 0xF8 = 0x08 (0b1000)
+   // 清除了颜色标记位（最后3位是颜色标记位），保留了其他标记位（0x0F=0b1111的最前面的一个1）
 #define makewhite(g, x) \
   ((x)->gch.marked = ((x)->gch.marked & (uint8_t)~LJ_GC_COLORS) | curwhite(g))
+
+// 假设：
+   // LJ_GC_WHITES = 0x03 (0b11)
+   // 对象标记是 0x01 (WHITE0)
+   // 则：
+   // 0x01 ^ 0x03 = 0x02 (WHITE1)
+   // 白色标记从 WHITE0 翻转到 WHITE1
 #define flipwhite(x)	((x)->gch.marked ^= LJ_GC_WHITES)
+
+// 假设：
+  // LJ_GC_BLACK = 0x04 (0b100)
+  // ~LJ_GC_BLACK = 0xFB (0b11111011)
+  // 对象标记是 0x07 (黑色 + 其他标记)
+  // 则：
+  // 0x07 & 0xFB = 0x03 (清除黑色标记位)
+  // 对象从黑色变为灰色， 灰色是：#define isgray(x)	(!((x)->gch.marked & (LJ_GC_BLACK|LJ_GC_WHITES))) = !(0b00000111) = 0b11111000
 #define black2gray(x)	((x)->gch.marked &= (uint8_t)~LJ_GC_BLACK)
 #define fixstring(s)	((s)->marked |= LJ_GC_FIXED)
 #define markfinalized(x)	((x)->gch.marked |= LJ_GC_FINALIZED)

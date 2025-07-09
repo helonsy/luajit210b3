@@ -132,15 +132,19 @@ static TValue *mmcall(lua_State *L, ASMFunction cont, cTValue *mo,
 /* -- C helpers for some instructions, called from assembler VM ----------- */
 
 /* Helper for TGET*. __index chain and metamethod. */
+// 这是LuaJIT中处理带原方法的table取值操作的核心函数
+// L：Lua状态机 o：要进去取值操作的对象 k：键
 cTValue *lj_meta_tget(lua_State *L, cTValue *o, cTValue *k)
 {
   int loop;
+  // 使用循环来处理 __index 元方法链，最多循环 LJ_MAX_IDXCHAIN 次，防止无限循环
   for (loop = 0; loop < LJ_MAX_IDXCHAIN; loop++) {
     cTValue *mo;
+    // 如果o是table，先尝试从table中取值
     if (LJ_LIKELY(tvistab(o))) {
       GCtab *t = tabV(o);
       cTValue *tv = lj_tab_get(L, t, k);
-      if (!tvisnil(tv) ||
+      if (!tvisnil(tv) || // 如果找到了非nil值，直接返回，如果值是nil，检查是否有__index元方法
 	  !(mo = lj_meta_fast(L, tabref(t->metatable), MM_index)))
 	return tv;
     } else if (tvisnil(mo = lj_meta_lookup(L, o, MM_index))) {

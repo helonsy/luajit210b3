@@ -134,6 +134,32 @@ static TValue *mmcall(lua_State *L, ASMFunction cont, cTValue *mo,
 /* Helper for TGET*. __index chain and metamethod. */
 // 这是LuaJIT中处理带原方法的table取值操作的核心函数
 // L：Lua状态机 o：要进去取值操作的对象 k：键
+/* 对应在Lua代码中的场景：
+-- 场景 1: 简单的 table 访问
+local t = {a = 1}
+local v = t.a  -- 直接返回 1
+
+-- 场景 2: __index 是函数
+local mt = {
+    __index = function(t, k)
+        return "default"
+    end
+}
+local t = setmetatable({}, mt)
+local v = t.x  -- 调用 __index 函数
+
+-- 场景 3: __index 是另一个 table
+local parent = {x = 10}
+local mt = {__index = parent}
+local t = setmetatable({}, mt)
+local v = t.x  -- 在 parent 中查找
+
+-- 场景 4: __index 链
+local grandparent = {z = 30}
+local parent = setmetatable({y = 20}, {__index = grandparent})
+local t = setmetatable({x = 10}, {__index = parent})
+local v = t.z  -- 沿着链查找：t -> parent -> grandparent
+*/
 cTValue *lj_meta_tget(lua_State *L, cTValue *o, cTValue *k)
 {
   int loop;
@@ -147,17 +173,21 @@ cTValue *lj_meta_tget(lua_State *L, cTValue *o, cTValue *k)
       if (!tvisnil(tv) || // 如果找到了非nil值，直接返回，如果值是nil，检查是否有__index元方法
 	  !(mo = lj_meta_fast(L, tabref(t->metatable), MM_index)))
 	return tv;
-    } else if (tvisnil(mo = lj_meta_lookup(L, o, MM_index))) {
+    }
+    // 如果o不是table，查找其__index元方法，如果没有找到，抛出类型错误
+    else if (tvisnil(mo = lj_meta_lookup(L, o, MM_index))) {
       lj_err_optype(L, o, LJ_ERR_OPINDEX);
       return NULL;  /* unreachable */
     }
+
+    // 如果__index是函数，调用mmcall设置元方法调用
     if (tvisfunc(mo)) {
       L->top = mmcall(L, lj_cont_ra, mo, o, k);
       return NULL;  /* Trigger metamethod call. */
     }
-    o = mo;
+    o = mo; // 如果__index不是函数（通常是另一个table），将o设置为元方法的的值，继续循环
   }
-  lj_err_msg(L, LJ_ERR_GETLOOP);
+  lj_err_msg(L, LJ_ERR_GETLOOP); // 如果循环次数达到上限，说明__index链太长或存在循环引用，抛出错误
   return NULL;  /* unreachable */
 }
 

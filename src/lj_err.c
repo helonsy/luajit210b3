@@ -619,7 +619,7 @@ LJ_NOINLINE void lj_err_run(lua_State *L)
     L->top = top+1;
     lj_vm_call(L, top, 1+1);  /* Stack: |errfunc|msg| -> |msg| */
   }
-  lj_err_throw(L, LUA_ERRRUN);
+  lj_err_throw(L, LUA_ERRRUN); // 运行时错误，抛出异常
 }
 
 /* Formatted runtime error message. */
@@ -656,16 +656,21 @@ LJ_NOINLINE void lj_err_lex(lua_State *L, GCstr *src, const char *tok,
 }
 
 /* Typecheck error for operands. */
+// 处理操作类型错误的函数
 LJ_NOINLINE void lj_err_optype(lua_State *L, cTValue *o, ErrMsg opm)
 {
+  // 获取操作数的类型名，如string，number
   const char *tname = lj_typename(o);
+  // 将错误码转换为操作名
   const char *opname = err2msg(opm);
+
+  // 如果当前执行的是Lua函数
   if (curr_funcisL(L)) {
-    GCproto *pt = curr_proto(L);
-    const BCIns *pc = cframe_Lpc(L) - 1;
+    GCproto *pt = curr_proto(L); // 获取函数原型
+    const BCIns *pc = cframe_Lpc(L) - 1; // 获取当前当前字节码指令位置
     const char *oname = NULL;
     const char *kind = lj_debug_slotname(pt, pc, (BCReg)(o-L->base), &oname);
-    if (kind)
+    if (kind) // 如果能获取到变量的详细信息
       err_msgv(L, LJ_ERR_BADOPRT, opname, kind, oname, tname);
   }
   err_msgv(L, LJ_ERR_BADOPRV, opname, tname);
@@ -678,7 +683,6 @@ LJ_NOINLINE void lj_err_comp(lua_State *L, cTValue *o1, cTValue *o2)
   const char *t2 = lj_typename(o2);
   err_msgv(L, t1 == t2 ? LJ_ERR_BADCMPV : LJ_ERR_BADCMPT, t1, t2);
   /* This assumes the two "boolean" entries are commoned by the C compiler. */
-}
 
 /* Typecheck error for __call. */
 LJ_NOINLINE void lj_err_optype_call(lua_State *L, TValue *o)
